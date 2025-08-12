@@ -20,6 +20,41 @@ router.get('/',(req,res)=>{
   });
 });
 
+
+
+// get active batch
+router.get('/active', (req, res) => {
+    const sql = `SELECT * FROM ${BATCH} WHERE status = 'active' AND is_deleted = 0`;
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).send(createErrorResult(err));
+        return res.status(200).send(createSuccessResult(results));
+    });
+});
+
+// get inactive batches
+router.get('/inactive', (req, res) => {
+    const sql = `SELECT * FROM ${BATCH} WHERE status = 'inactive' AND is_deleted = 0`;
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).send(createErrorResult(err));
+        return res.status(200).send(createSuccessResult(results));
+    });
+});
+
+// activate a batch by year (only one active at a time)
+router.patch('/activate/:batch_year', (req, res) => {
+    const { batch_year } = req.params;
+    const deactivateAll = `UPDATE ${BATCH} SET status = 'inactive'`;
+    const activateOne = `UPDATE ${BATCH} SET status = 'active' WHERE batch_year = ? AND is_deleted = 0`;
+
+    db.query(deactivateAll, (err) => {
+        if (err) return res.status(500).send(createErrorResult(err));
+        db.query(activateOne, [batch_year], (err, result) => {
+            if (err) return res.status(500).send(createErrorResult(err));
+            if (result.affectedRows === 0) return res.status(404).send(createErrorResult("Batch not found for given year"));
+            return res.status(200).send(createSuccessResult(`Batch ${batch_year} is now active.`));
+        });
+    });
+});
 // Get single batch by ID
 
 router.get('/:id', (req, res) => {
@@ -36,7 +71,6 @@ router.get('/:id', (req, res) => {
 
   });
 });
-
 
 // Get id by year
 router.get('/id-by-year/:batch_year', (req, res) => {
@@ -98,17 +132,31 @@ router.put('/:id', (req, res) => {
 
 // DELETE batch by ID
 
-router.delete ('/:batch_id',(req,res)=>{
-  const {batch_id}=req.params;
-  const sql = `DELETE FROM ${BATCH} WHERE batch_id = ?`;
-  db.query(sql, [batch_id], (err, result)=>{
-    if(err)
-      return res.status(500).send(createErrorResult(err));
+// router.delete ('/:batch_id',(req,res)=>{
+//   const {batch_id}=req.params;
+//   const sql = `DELETE FROM ${BATCH} WHERE batch_id = ?`;
+//   db.query(sql, [batch_id], (err, result)=>{
+//     if(err)
+//       return res.status(500).send(createErrorResult(err));
 
-     if (result.affectedRows === 0)
-      return res.status(404).send(createErrorResult("Batch deleted."));
+//      if (result.affectedRows === 0)
+//       return res.status(404).send(createErrorResult("Batch deleted."));
 
-  });
+//   });
+// });
+
+// soft delete batch
+router.delete('/:id', (req, res) => {
+    const { id } = req.params;
+    const sql = `UPDATE ${BATCH} SET is_deleted = 1 WHERE batch_id = ?`;
+    db.query(sql, [id], (err, result) => {
+        if (err) return res.status(500).send(createErrorResult(err));
+        if (result.affectedRows === 0) return res.status(404).send(createErrorResult("Batch not found"));
+        return res.status(200).send(createSuccessResult("Batch soft deleted successfully."));
+    });
 });
 
+
+
 module.exports = router;
+
